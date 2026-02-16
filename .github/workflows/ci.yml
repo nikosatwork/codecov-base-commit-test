@@ -1,0 +1,74 @@
+name: CI
+
+on: 
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: "Test suite"
+        required: true
+        type: choice
+        default: core
+        options:
+          - core
+          - ext
+          - both
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+
+  core:
+    if: ${{ github.event.inputs.test_suite == 'core' || github.event.inputs.test_suite == 'both' }}
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run core tests
+        run: pytest tests/test_calc.py --cov=app --cov-report=xml --cov-report=term-missing
+      - name: Validate coverage paths
+        run: |
+          test -f coverage.xml
+          grep -E 'filename="(app/|tests/)"' coverage.xml | head -n 20
+      - name: Upload core coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: core
+          name: core
+          verbose: true
+
+  ext:
+    if: ${{ github.event.inputs.test_suite == 'ext' || github.event.inputs.test_suite == 'both' }}
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run ext tests
+        run: pytest tests/test_ext.py --cov=app --cov-report=xml --cov-report=term-missing
+      - name: Validate coverage paths
+        run: |
+          test -f coverage.xml
+          grep -E 'filename="(app/|tests/)"' coverage.xml | head -n 20
+      - name: Upload ext coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: ext
+          name: ext
+          verbose: true

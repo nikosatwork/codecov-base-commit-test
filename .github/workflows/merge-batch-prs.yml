@@ -1,0 +1,34 @@
+name: Merge Batch PRs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge all open PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          prs=$(gh pr list \
+            -R "$GH_REPO" \
+            --state open \
+            --limit 1000 \
+            --json number \
+            --jq '.[].number')
+
+          if [ -z "$prs" ]; then
+            echo "No matching PRs found"
+            exit 0
+          fi
+
+          for pr in $prs; do
+            echo "Merging #$pr"
+            gh pr merge "$pr" -R "$GH_REPO" --merge --delete-branch --admin || echo "Could not merge #$pr"
+          done

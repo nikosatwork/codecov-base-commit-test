@@ -1,0 +1,61 @@
+name: Create Stress Batch PRs
+
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "How many PRs to create (recommended 30-60)"
+        required: true
+        default: "40"
+      base:
+        description: "Base branch"
+        required: true
+        default: "main"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.base }}
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Create stress PR branches
+        env:
+          COUNT: ${{ github.event.inputs.count }}
+          BASE: ${{ github.event.inputs.base }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in $(seq 1 "$COUNT"); do
+            branch="repro/stress-${GITHUB_RUN_ID}-${i}"
+            git switch -c "$branch"
+            mkdir -p batch_changes
+
+            file="batch_changes/stress_${GITHUB_RUN_ID}_${i}.txt"
+            {
+              echo "stress batch ${GITHUB_RUN_ID}"
+              echo "pr index ${i}"
+              echo "timestamp $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            } > "$file"
+
+            git add "$file"
+            git commit -m "repro: stress batch change ${i}"
+            git push --set-upstream origin "$branch"
+
+            title="stress batch repro PR ${i}"
+
+            gh pr create \
+              --base "$BASE" \
+              --head "$branch" \
+              --title "$title" \
+              --body "Auto-generated stress PR ${i}/${COUNT} for merge-batch repro"
+
+            git switch "$BASE"
+          done
